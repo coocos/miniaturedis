@@ -18,3 +18,16 @@ func TestBulkStringDeserializer(t *testing.T) {
 	}
 
 }
+
+func TestArrayBulkStringDeserializer(t *testing.T) {
+
+	got, err := deserializeArray(strings.NewReader("*2\r\n$5\r\nhello\r\n$5\r\nworld\r\n"))
+	if err != nil {
+		t.Error("Failed to deserialize array", err)
+	}
+	want := [][]byte{[]byte("hello"), []byte("world")}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Failed to deserialize array, got: %s, want: %s", got, want)
+	}
+
+}
