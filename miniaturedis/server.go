@@ -21,7 +21,7 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		clients: make(map[uuid.UUID]Client), lock: sync.RWMutex{}, requests: make(chan Request), shutdown: make(chan any),
+		clients: make(map[uuid.UUID]Client), requests: make(chan Request), shutdown: make(chan any),
 	}
 }
 
@@ -110,7 +110,6 @@ func (s *Server) Start() {
 	if err != nil {
 		log.Fatalln("Failed to start server", err)
 	}
-
 	s.listener = listener
 
 	go s.handleRequests()
