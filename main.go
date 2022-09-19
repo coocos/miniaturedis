@@ -2,11 +2,11 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"log"
 	"net"
+	"os"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -18,11 +18,13 @@ type Server struct {
 	clients  map[uuid.UUID]Client
 	lock     sync.RWMutex
 	requests chan Request
+	shutdown chan any
+	listener net.Listener
 }
 
 func NewServer() *Server {
 	return &Server{
-		make(map[uuid.UUID]Client), sync.RWMutex{}, make(chan Request),
+		clients: make(map[uuid.UUID]Client), lock: sync.RWMutex{}, requests: make(chan Request), shutdown: make(chan any),
 	}
 }
 
@@ -97,36 +99,50 @@ func (s *Server) handleConnection(client Client) {
 	}
 }
 
-func (s *Server) start(ctx context.Context) {
+func (s *Server) stop() {
+	log.Println("Stopping server")
+	close(s.shutdown)
+	s.listener.Close()
+	close(s.requests)
+}
+
+func (s *Server) start() {
 
 	listener, err := net.Listen("tcp", ":6379")
 	if err != nil {
 		log.Fatalln("Failed to start server", err)
 	}
 
-	go s.handleRequests()
+	s.listener = listener
 
-	go func() {
-		<-ctx.Done()
-		listener.Close()
-		log.Println("Stopping server")
-		close(s.requests)
-	}()
+	go s.handleRequests()
 
 	log.Println("Starting server")
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Println("Failed to accept client", err)
-			return
+			select {
+			case <-s.shutdown:
+				return
+			default:
+				log.Println("Failed to accept client", err)
+			}
+		} else {
+			s.addConnection(conn)
 		}
-		s.addConnection(conn)
 	}
 }
 
 func main() {
-	context, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	server := NewServer()
-	server.start(context)
-	stop()
+
+	sigs := make(chan os.Signal, 1)
+
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		server.stop()
+	}()
+
+	server.start()
 }
