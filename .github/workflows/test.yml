@@ -17,4 +17,4 @@ jobs:
           go-version: 1.18
       - name: Run tests
         run:
-          go test -race .
+          go test -race ./...

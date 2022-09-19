@@ -1,4 +1,4 @@
-package main
+package miniaturedis
 
 import (
 	"bufio"
@@ -19,8 +19,8 @@ func NewTestClient() (net.Conn, error) {
 func TestEcho(t *testing.T) {
 
 	server := NewServer()
-	go server.start()
-	defer server.stop()
+	go server.Start()
+	defer server.Stop()
 
 	client, err := NewTestClient()
 	if err != nil {
