@@ -3,9 +3,10 @@ package miniaturedis
 import (
 	"bufio"
 	"bytes"
-	"log"
+	"io"
 	"net"
 	"testing"
+	"time"
 )
 
 func NewTestClient() (net.Conn, error) {
@@ -13,12 +14,15 @@ func NewTestClient() (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return conn, nil
+	err = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	return conn, err
 }
 
-func TestEcho(t *testing.T) {
+func TestGetRequest(t *testing.T) {
 
-	server := NewServer()
+	database := NewDatabase()
+	database.data["example-key"] = "example-value"
+	server := NewServerWithDatabase(database)
 	go server.Start()
 	defer server.Stop()
 
@@ -28,16 +32,33 @@ func TestEcho(t *testing.T) {
 	}
 	defer client.Close()
 
-	log.Println("Writing to server")
-	message := []byte("hello\n")
-	if _, err := client.Write(message); err != nil {
-		t.Error("Failed to send message to server", err)
+	request := []byte("*2\r\n$3\r\nGET\r\n$3\r\nabc\r\n")
+	if _, err := client.Write(request); err != nil {
+		t.Fatal("Failed to send request to server", err)
 	}
 
-	log.Println("Waiting for response from server")
-	response, err := bufio.NewReader(client).ReadBytes('\n')
-	if err != nil || !bytes.Equal(message, response) {
-		t.Error("Failed to receive echo response")
+	want := []byte("$-1\r\n")
+	got, err := bufio.NewReader(client).ReadBytes('\n')
+	if err != nil {
+		t.Fatal("Failed to receive response:", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("Expected %s, got %s", want, got)
+	}
+
+	request = []byte("*2\r\n$3\r\nGET\r\n$11\r\nexample-key\r\n")
+	if _, err := client.Write(request); err != nil {
+		t.Fatal("Failed to send request to server", err)
+	}
+
+	want = []byte("$13\r\nexample-value\r\n")
+	got = make([]byte, len(want))
+	_, err = io.ReadFull(client, got)
+	if err != nil {
+		t.Fatal("Failed to receive response:", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("Expected %s, got %s", want, got)
 	}
 
 }

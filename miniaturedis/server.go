@@ -1,8 +1,7 @@
 package miniaturedis
 
 import (
-	"bufio"
-	"fmt"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -17,41 +16,55 @@ type Server struct {
 	requests chan Request
 	shutdown chan any
 	listener net.Listener
+	database Database
 }
 
 func NewServer() *Server {
 	return &Server{
-		clients: make(map[uuid.UUID]Client), requests: make(chan Request), shutdown: make(chan any),
+		clients:  make(map[uuid.UUID]Client),
+		requests: make(chan Request),
+		shutdown: make(chan any),
+		database: NewDatabase(),
+	}
+}
+
+func NewServerWithDatabase(database Database) *Server {
+	return &Server{
+		clients:  make(map[uuid.UUID]Client),
+		requests: make(chan Request),
+		shutdown: make(chan any),
+		database: database,
 	}
 }
 
 type Request struct {
 	source uuid.UUID
-	data   string
+	data   RespArray
 }
 
 type Client struct {
 	net.Conn
-	id uuid.UUID
+	id        uuid.UUID
+	responses chan RespType
 }
 
-func readRequest(r io.Reader) (string, error) {
-	scanner := bufio.NewScanner(r)
-	scanner.Split(bufio.ScanLines)
-	if remaining := scanner.Scan(); !remaining {
-		return scanner.Text(), scanner.Err()
+func readRequest(r io.Reader) (RespArray, error) {
+	array, err := deserializeArray(r)
+	if err != nil {
+		return RespArray{}, err
 	}
-	return scanner.Text(), nil
+	return array, nil
 }
 
 func (s *Server) handleRequests() {
 	for request := range s.requests {
-		log.Println("Echoing", request.data)
-		response := []byte(fmt.Sprintf("%s\n", request.data))
-		bytes, err := s.clients[request.source].Write(response)
-		if err != nil || bytes != len(response) {
-			log.Println("Failed to write response to request")
-		}
+		log.Printf("Client %s sent %s\n", request.source, request.data)
+		response := s.database.execute(request.data)
+		log.Printf("Response: %s", response)
+
+		s.lock.RLock()
+		s.clients[request.source].responses <- response
+		s.lock.RUnlock()
 	}
 	log.Println("Stopping request processing")
 }
@@ -70,7 +83,7 @@ func (s *Server) closeConnection(client Client) {
 }
 
 func (s *Server) addConnection(conn net.Conn) {
-	client := Client{conn, uuid.New()}
+	client := Client{conn, uuid.New(), make(chan RespType)}
 	log.Println("New client connection:", client.id)
 	s.lock.Lock()
 	s.clients[client.id] = client
@@ -85,14 +98,20 @@ func (s *Server) handleConnection(client Client) {
 	for {
 		request, err := readRequest(client)
 		if err != nil {
-			log.Println("Invalid request from client:", err)
-			return
-		}
-		if len(request) == 0 {
-			return
+			if errors.Is(err, io.EOF) {
+				return
+			} else {
+				log.Println("Invalid request from client:", err)
+				return
+			}
 		}
 		s.requests <- Request{client.id, request}
-		log.Println(request)
+		response := <-client.responses
+		bytes, err := client.Write(response.serialize())
+		if err != nil || bytes != len(response.serialize()) {
+			log.Printf("Failed to send response to client %s: %v", client.id, err)
+			return
+		}
 	}
 }
 
