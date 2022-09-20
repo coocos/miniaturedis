@@ -8,6 +8,7 @@ import (
 
 type Database interface {
 	get(key string) (string, error)
+	set(key string, value string)
 	execute(request RespArray) RespType
 }
 
@@ -31,6 +32,10 @@ func (d *DefaultDatabase) get(key string) (string, error) {
 	return value, nil
 }
 
+func (d *DefaultDatabase) set(key string, value string) {
+	d.data[key] = value
+}
+
 func (d *DefaultDatabase) execute(request RespArray) RespType {
 	command := request[0].data
 	switch string(command) {
@@ -45,6 +50,16 @@ func (d *DefaultDatabase) execute(request RespArray) RespType {
 			} else {
 				return RespBulkString{[]byte(value)}
 			}
+		}
+	case "SET":
+		{
+			if len(request) != 3 {
+				return RespError{message: "faulty SET request"}
+			}
+			key := request[1].data
+			value := request[2].data
+			d.set(string(key), string(value))
+			return RespSimpleString{"OK"}
 		}
 	}
 	return RespError{message: fmt.Sprintf("unknown command %s", command)}

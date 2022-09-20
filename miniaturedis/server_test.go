@@ -62,3 +62,36 @@ func TestGetRequest(t *testing.T) {
 	}
 
 }
+
+func TestSetRequest(t *testing.T) {
+
+	database := NewDatabase()
+	server := NewServerWithDatabase(database)
+	go server.Start()
+	defer server.Stop()
+
+	client, err := NewTestClient()
+	if err != nil {
+		t.Error("Failed to connect to server")
+	}
+	defer client.Close()
+
+	request := []byte("*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n")
+	if _, err := client.Write(request); err != nil {
+		t.Fatal("Failed to send request to server", err)
+	}
+
+	want := []byte("+OK\r\n")
+	got, err := bufio.NewReader(client).ReadBytes('\n')
+	if err != nil {
+		t.Fatal("Failed to receive response:", err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Errorf("Expected %s, got %s", want, got)
+	}
+
+	if database.data["key"] != "value" {
+		t.Error("Key was not set")
+	}
+
+}

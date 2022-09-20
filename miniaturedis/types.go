@@ -30,6 +30,14 @@ func (s RespBulkString) serialize() []byte {
 	return buffer.Bytes()
 }
 
+type RespSimpleString struct {
+	message string
+}
+
+func (s RespSimpleString) serialize() []byte {
+	return []byte(fmt.Sprintf("+%s\r\n", s.message))
+}
+
 type RespError struct {
 	message string
 }
