@@ -1,4 +1,4 @@
-package miniaturedis
+package server
 
 import (
 	"errors"

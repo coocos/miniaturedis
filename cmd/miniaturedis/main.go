@@ -5,11 +5,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/coocos/miniaturedis/miniaturedis"
+	"github.com/coocos/miniaturedis/internal/server"
 )
 
 func main() {
-	server := miniaturedis.NewServer()
+	server := server.NewServer()
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
