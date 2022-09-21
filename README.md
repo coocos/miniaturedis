@@ -1,5 +1,7 @@
 # miniaturedis
 
+[![Tests](https://github.com/coocos/miniaturedis/actions/workflows/test.yml/badge.svg)](https://github.com/coocos/miniaturedis/actions/workflows/test.yml)
+
 A miniature implementation of [Redis](https://redis.io).
 
 ## Description
@@ -18,7 +20,6 @@ $ redis-cli
 OK
 127.0.0.1:6379> GET some-key
 "some-value"
-127.0.0.1:6379> GET some-key
 ```
 
 ## Features
